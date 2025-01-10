@@ -1,0 +1,56 @@
+% Clear all variables and the command window
+clc;
+clear;
+
+% Specify the paths to the NetCDF files to be processed
+file_paths = {'sfcWind_Amon_CAS-ESM2-0_ssp585_r1i1p1f1_gn_201501-210012.nc'};
+
+% Initialize an empty matrix to store all climate data
+all_clim_data = [];
+
+% Loop through each specified NetCDF file
+for file_index = 1:length(file_paths)
+    file_path = file_paths{file_index};
+    
+    % Read the climate variable data (surface wind speed)
+    data = ncread(file_path, 'sfcWind');
+
+    % Read longitude and latitude data
+    lon = ncread(file_path, 'lon');
+    lat = ncread(file_path, 'lat');
+
+    % Load coordinates from the Excel file
+    excel_file = 'ID_xy.xlsx';
+    coords = xlsread(excel_file); % Assumes coordinate data is stored in the default worksheet
+
+    % Get the number of coordinate pairs
+    num_coords = size(coords, 1);
+    
+    % Initialize a matrix to store climate data for the current file
+    clim_data = NaN(num_coords, size(data, 3));
+
+    % Loop through each coordinate pair to extract corresponding climate data
+    for i = 1:num_coords
+        x = coords(i, 1); % Longitude value
+        y = coords(i, 2); % Latitude value
+
+        % Find the closest index in longitude and latitude arrays
+        [~, lon_index] = min(abs(lon - x));
+        [~, lat_index] = min(abs(lat - y));
+
+        % Extract the climate data for the corresponding coordinates
+        clim_data(i, :) = data(lon_index, lat_index, :);
+    end
+    
+    % Append the climate data from the current file to the overall matrix
+    all_clim_data = [all_clim_data; clim_data];
+end
+
+% Specify the output Excel file path
+output_file = 'Climate_Data.xlsx';
+
+% Write the combined climate data to the Excel file
+writematrix(all_clim_data, output_file);
+
+% Display a message to confirm successful export
+disp(['Climate data has been successfully saved to ', output_file]);
