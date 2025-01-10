@@ -1,0 +1,97 @@
+# Clear all objects from the workspace
+rm(list = ls())
+
+# Load necessary libraries
+library(readxl)
+library(runjags)
+
+# Function to calculate the Highest Density Interval (HDI) for MCMC samples
+# sampleVec: Vector of samples
+# credMass: Credible mass, typically 0.95 for a 95% HDI
+HDIofMCMC <- function(sampleVec, credMass = 0.95) {
+  # Sort the sample vector
+  sortedPts <- sort(sampleVec)
+  # Determine the number of samples within the credible interval
+  ciIdxInc <- ceiling(credMass * length(sampleVec))
+  # Compute the number of possible intervals
+  nCIs <- length(sampleVec) - ciIdxInc
+  # Initialize a vector to store interval widths
+  ciWidth <- rep(0, nCIs)
+  # Calculate the width of each interval
+  for (i in 1:nCIs) {
+    ciWidth[i] <- sortedPts[i + ciIdxInc] - sortedPts[i]
+  }
+  # Find the minimum width interval
+  HDImin <- sortedPts[which.min(ciWidth)]
+  HDImax <- sortedPts[which.min(ciWidth) + ciIdxInc]
+  # Return the HDI as a vector
+  HDI <- c(HDImin, HDImax)
+  return(HDI)
+}
+
+# Load data from an Excel sheet
+data <- read_excel("C:/Users/CANGUO/Desktop/Bayesian_PDF_upload2.xlsx", sheet = 'Bayesian_model_upload_data')
+
+# Extract columns
+province <- data$province
+year <- data$year
+y <- data$y
+x1 <- data$x1
+x2 <- data$x2
+x3 <- data$x3
+x4 <- data$x4
+x5 <- data$x5
+x6 <- data$x6
+
+# Convert province and year to numeric indices
+provinceIdx <- as.numeric(factor(province))
+yearIdx <- as.numeric(factor(year))
+
+# Get unique provinces and years
+Provinces <- unique(provinceIdx)
+Years <- unique(yearIdx)
+
+# Determine total number of observations and provinces
+Ntotal <- length(y)
+Nprovince <- length(Provinces)
+
+# Standardize the response and predictors using Z-scores for better model convergence
+y <- as.vector(scale(y))
+x1 <- as.vector(scale(x1))
+x2 <- as.vector(scale(x2))
+x3 <- as.vector(scale(x3))
+x4 <- as.vector(scale(x4))
+x5 <- as.vector(scale(x5))
+x6 <- as.vector(scale(x6))
+
+# Prepare data for JAGS
+dat <- dump.format(list(y = y, x1 = x1, x2 = x2, x3 = x3, x4 = x4, x5 = x5, x6 = x6, 
+                        provinceIdx = provinceIdx, Ntotal = Ntotal, Nprovince = Nprovince))
+
+# Initialize chains with random seeds
+inits1 <- dump.format(list(.RNG.name = "base::Super-Duper", .RNG.seed = 99999))
+inits2 <- dump.format(list(.RNG.name = "base::Wichmann-Hill", .RNG.seed = 1234))
+inits3 <- dump.format(list(.RNG.name = "base::Mersenne-Twister", .RNG.seed = 6666))
+
+# Specify parameters to monitor during MCMC sampling
+monitor <- c("alpha0.mu", "alpha.mu", "alpha0.province", "alpha.province", "nu", "deviance")
+
+# Run JAGS model
+results <- run.jags(model = "Hierarchical_model2_nolat.txt",
+                    monitor = monitor, 
+                    data = dat, 
+                    n.chains = 3, 
+                    inits = c(inits1, inits2, inits3), 
+                    plots = FALSE, 
+                    burnin = 5000, 
+                    sample = 3000, 
+                    thin = 5)
+
+# Display a summary of the results
+summary(results)
+
+# Plot the MCMC chains
+plot(results$mcmc)
+
+# Combine the three MCMC chains into a single matrix for further analysis
+chains <- rbind(results$mcmc[[1]], results$mcmc[[2]], results$mcmc[[3]])
