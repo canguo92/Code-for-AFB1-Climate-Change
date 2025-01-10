@@ -1,0 +1,86 @@
+# Load necessary libraries
+# library(readxl)
+# library(writexl)
+
+# Step 1: Read future climate data from an Excel file
+future_climate_data <- read_excel("C:/Users/CANGUO/Desktop/SD_INPUT/M1_585_SD.xlsx", sheet = "Sheet1")
+
+# Preview the original dataset
+head(future_climate_data)
+
+# Step 2: Detrend the climate data for specified variables
+trend_removed_data <- future_climate_data
+variables_to_detrend <- c("x1", "x2", "x3", "x4", "x5", "x6") # Variables to be detrended
+
+for (var in variables_to_detrend) {
+  # Calculate the long-term mean (trend) for the variable
+  mean_value <- mean(future_climate_data[[var]], na.rm = TRUE)
+  
+  # Remove the trend by subtracting the mean
+  trend_removed_data[[var]] <- future_climate_data[[var]] - mean_value
+}
+
+# Preview the detrended dataset
+head(trend_removed_data)
+
+# Step 3: Extract posterior samples for model coefficients
+alpha0_samples <- chains[, "alpha0.province[1]"]  # Intercept posterior
+alpha1_samples <- chains[, "alpha.province[1,1]"] # Tmax coefficient posterior
+alpha2_samples <- chains[, "alpha.province[1,2]"] # Tmin coefficient posterior
+alpha3_samples <- chains[, "alpha.province[1,3]"] # Precipitation coefficient posterior
+alpha4_samples <- chains[, "alpha.province[1,4]"] # Wind Speed coefficient posterior
+alpha5_samples <- chains[, "alpha.province[1,5]"] # Pressure coefficient posterior
+alpha6_samples <- chains[, "alpha.province[1,6]"] # Evaporation coefficient posterior
+
+# Step 4: Define the target years for prediction
+target_years <- seq(2020, 2100)
+
+# Initialize a list to store AFB predictions for each year
+AFB_predictions <- list()
+
+for (year in target_years) {
+  # Extract climate data for the given year (detrended data)
+  data <- trend_removed_data[trend_removed_data$year == year, ]
+  
+  # Calculate the posterior samples for AFB
+  AFB_samples <- alpha0_samples +
+    alpha1_samples * data$x1 +
+    alpha2_samples * data$x2 +
+    alpha3_samples * data$x3 +
+    alpha4_samples * data$x4 +
+    alpha5_samples * data$x5 +
+    alpha6_samples * data$x6
+  
+  # Adjust negative values using squared compression
+  negative_samples <- AFB_samples[AFB_samples < 0]
+  adjusted_negative <- abs(negative_samples)^2 * 0.1
+  AFB_samples[AFB_samples < 0] <- adjusted_negative
+  
+  # Dynamically truncate values below the 5th percentile
+  lower_bound <- quantile(AFB_samples, probs = 0.05)
+  AFB_samples <- ifelse(AFB_samples < lower_bound, lower_bound, AFB_samples)
+  
+  # Store the results for the current year
+  AFB_predictions[[as.character(year)]] <- list(
+    Year = year,
+    Mean_AFB = mean(AFB_samples),
+    HDI_Lower = HDIofMCMC(AFB_samples, credMass = 0.95)[1],
+    HDI_Upper = HDIofMCMC(AFB_samples, credMass = 0.95)[2]
+  )
+}
+
+# Step 5: Convert results to a data frame
+AFB_results_df <- do.call(rbind, lapply(AFB_predictions, function(x) {
+  data.frame(
+    Year = x$Year,
+    Mean_AFB = x$Mean_AFB,
+    HDI_Lower = x$HDI_Lower,
+    HDI_Upper = x$HDI_Upper
+  )
+}))
+
+# Step 6: Save the results to an Excel file
+write.xlsx(AFB_results_df, "M1_585_SD_AFB_Predictions_Adjusted_Smooth_Detrended.xlsx")
+
+# Display a message to confirm completion
+cat("AFB prediction results have been saved successfully.\n")
