@@ -1,0 +1,51 @@
+# Install and load required libraries
+if (!require("DMwR")) install.packages("DMwR")
+if (!require("themis")) install.packages("themis")
+if (!require("recipes")) install.packages("recipes")
+if (!require("readxl")) install.packages("readxl")
+if (!require("writexl")) install.packages("writexl")
+
+library(DMwR)
+library(themis)
+library(recipes)
+library(readxl)
+library(writexl)
+
+# Step 1: Load the dataset
+mydata <- read_excel("AFB-Climate-Selection-SMOTE-aver10.xlsx")
+
+# Step 2: Inspect the structure of the dataset
+str(mydata)
+
+# Step 3: Check the distribution of the target variable
+table(mydata$GROUP)
+
+# Convert the target variable to a factor (required for SMOTE)
+mydata$GROUP <- as.factor(mydata$GROUP)
+
+# Step 4: Create a recipe for preprocessing
+my_recipe <- recipe(GROUP ~ ., data = mydata) %>%
+  # Mark the ID column ("NO") as an identifier
+  update_role(NO, new_role = "id") %>%
+  # Apply SMOTE to balance the target variable
+  step_smote(GROUP)
+
+# Step 5: Prepare and bake the recipe (apply transformations)
+balanced_data <- my_recipe %>%
+  prep() %>%
+  bake(new_data = NULL)
+
+# Step 6: Check the new distribution of the target variable
+print("Distribution after applying SMOTE:")
+print(table(balanced_data$GROUP))
+
+# Step 7: Remove unnecessary ID column (if present)
+final_data <- balanced_data %>%
+  select(-NO)  # Adjust based on your dataset
+
+# Step 8: Save the balanced dataset to an Excel file
+output_file <- "balanced_data.xlsx"
+write_xlsx(final_data, output_file)
+
+# Step 9: Confirmation message
+cat("Balanced dataset saved successfully to", output_file, "\n")
