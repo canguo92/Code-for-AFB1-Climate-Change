@@ -1,0 +1,36 @@
+model {
+
+
+      alpha0.mu ~ dnorm(0, 0.0000001) # prior intercept
+	alpha0.sig ~ dunif(0.0001, 100) # prior intercept error
+	for (i in 1:6) {
+	  alpha.mu[i] ~ dnorm(0, 0.0000001) # prior slopes
+	  alpha.sig[i] ~ dunif(0.0001, 100) # prior slope error
+	}
+	
+	sigma ~ dunif(0.0001, 100) # prior for the standard deviation 
+	nu <- nuMinusOne+1
+	nuMinusOne ~ dexp(1/29) # prior Normality scale parameter
+
+        for (s in 1:Nprovince) {
+    
+               alpha0.province[s] ~ dnorm(alpha0.mu, alpha0.sig)
+               for (i in 1:6) {
+                  alpha.province[s,i] ~ dnorm(alpha.mu[i], alpha.sig[i])
+                  }
+
+         }
+
+          for (i in 1:Ntotal) {
+	
+		y[i] ~ dt(mu[i], 1/sigma^2, nu)
+		mu[i] <- alpha0.province[provinceIdx[i]] + 
+		         alpha.province[ provinceIdx[i],1 ]*x1[i] + 
+		         alpha.province[ provinceIdx[i],2 ]*x2[i] + 
+		         alpha.province[ provinceIdx[i],3 ]*x3[i] + 
+		         alpha.province[ provinceIdx[i],4 ]*x4[i] + 
+		         alpha.province[ provinceIdx[i],5 ]*x5[i] +
+             alpha.province[ provinceIdx[i],6 ]*x6[i]
+               }
+
+}
