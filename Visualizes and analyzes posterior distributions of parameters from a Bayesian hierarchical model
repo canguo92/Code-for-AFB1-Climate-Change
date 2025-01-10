@@ -1,0 +1,55 @@
+# Clear all existing graphics
+graphics.off()
+
+# Function to plot density and calculate HDI for a given parameter
+plot_density_hdi <- function(parameter_samples, title, x_label, cred_mass = 0.95, color_fill = "#87CEFA", color_line = "#0000FF") {
+  # Calculate density
+  dens <- density(parameter_samples)
+  xrange <- range(dens$x[dens$y > 0])
+  
+  # Plot density distribution
+  par(mar = c(5, 5, 4, 2) + 2.5)
+  plot(dens, main = title, cex.main = 3,
+       xlab = x_label, ylab = "", cex.axis = 2, cex.lab = 2,
+       tck = 0.02, yaxt = "n", xlim = xrange, lwd = 3, las = 1)
+  mtext("PDF", side = 2, line = 4, cex = 2)
+  axis(2, las = 1, at = axTicks(2), labels = formatC(axTicks(2), format = "f", digits = 1), cex.axis = 2, tck = 0.02)
+  
+  # Calculate HDI
+  hdi <- HDIofMCMC(parameter_samples, credMass = cred_mass)
+  
+  # Highlight HDI region
+  rect(xleft = min(hdi), ybottom = par("usr")[3], xright = max(hdi), ytop = par("usr")[4], col = color_fill, border = NA)
+  polygon(c(dens$x, rev(dens$x)), c(dens$y, rep(0, length(dens$y))), col = color_line, border = color_line)
+  
+  # Add additional elements to the plot
+  abline(v = mean(parameter_samples), col = "red", lwd = 5) # Mean of the parameter
+  abline(v = hdi[1], lty = 1, col = "blue", lwd = 5)        # HDI lower bound
+  abline(v = hdi[2], lty = 1, col = "blue", lwd = 5)        # HDI upper bound
+  box(lwd = 2)
+  
+  # Display HDI and mean
+  print(hdi)
+  print(mean(parameter_samples))
+  
+  # Calculate and print two-sided p-value
+  p_value <- mean(parameter_samples < 0) * 2
+  print(paste("Two-sided p-value:", round(p_value, 4)))
+}
+
+# Parameters to analyze (names should match columns in the MCMC chains)
+params <- list(
+  list(name = "alpha.province[2,1]", title = "Fujian (Sensitivity to Pressure)", x_label = expression(paste("Sensitivity (μg·kg"^{-1},"/hPa)"))),
+  list(name = "alpha.province[2,2]", title = "Fujian (Sensitivity to Tmax)", x_label = expression(paste("Sensitivity (μg·kg"^{-1},"/" , degree, "C)"))),
+  list(name = "alpha.province[2,3]", title = "Fujian (Sensitivity to Tmin)", x_label = expression(paste("Sensitivity (μg·kg"^{-1},"/" , degree, "C)"))),
+  list(name = "alpha.province[2,4]", title = "Fujian (Sensitivity to Precipitation)", x_label = expression(paste("Sensitivity (μg·kg"^{-1},"/mm)"))),
+  list(name = "alpha.province[2,5]", title = "Fujian (Sensitivity to Evaporation)", x_label = expression(paste("Sensitivity (μg·kg"^{-1},"/mm)"))),
+  list(name = "alpha.province[2,6]", title = "Fujian (Sensitivity to Wind Speed)", x_label = expression(paste("Sensitivity (μg·kg"^{-1},"/m·s"^{-1},")")))
+)
+
+# Loop through each parameter, plot density, and calculate HDI
+for (param in params) {
+  graphics.off() # Close any open graphics windows
+  param_samples <- chains[, param$name]
+  plot_density_hdi(param_samples, title = param$title, x_label = param$x_label)
+}
